@@ -24,11 +24,20 @@ export async function handleTranslate(ctx: Context, env: Env): Promise<void> {
   }
 
   // Check if session already exists
-  if (await sessionExists(env.SESSIONS, chatId)) {
-    await ctx.reply(
-      'You already have an active session. Send /done to process it, or /cancel to start over.'
-    );
-    return;
+  const existingSession = await getSession(env.SESSIONS, chatId);
+  if (existingSession) {
+    // If session is stuck in processing or completed, auto-clean it
+    if (existingSession.status !== 'collecting') {
+      await deleteSession(env.SESSIONS, chatId);
+      await ctx.reply('Previous session was stuck. Starting a fresh session...');
+    } else {
+      // Session is in collecting state
+      await ctx.reply(
+        `You already have an active session with ${existingSession.messages.length} message(s) collected.\n\n` +
+          'Send /done to process it, or /cancel to start over.'
+      );
+      return;
+    }
   }
 
   // Create new session
@@ -140,5 +149,44 @@ export async function handleCancel(ctx: Context, env: Env): Promise<void> {
   } catch (error) {
     console.error('Error cancelling session:', error);
     await ctx.reply('Error cancelling session. Please try again.');
+  }
+}
+
+/**
+ * Handle /status command
+ * Shows current session status
+ */
+export async function handleStatus(ctx: Context, env: Env): Promise<void> {
+  const chatId = ctx.chat?.id;
+
+  if (!chatId) {
+    await ctx.reply('Error: Could not identify chat.');
+    return;
+  }
+
+  try {
+    const session = await getSession(env.SESSIONS, chatId);
+
+    if (!session) {
+      await ctx.reply('No active session.\n\nUse /translate to start a new session.');
+      return;
+    }
+
+    const voiceCount = session.messages.filter((m) => m.type === 'voice').length;
+    const textCount = session.messages.filter((m) => m.type === 'text').length;
+
+    await ctx.reply(
+      `Session Status:\n\n` +
+        `Status: ${session.status}\n` +
+        `Total messages: ${session.messages.length}\n` +
+        `- Voice messages: ${voiceCount}\n` +
+        `- Text messages: ${textCount}\n\n` +
+        (session.status === 'collecting'
+          ? 'Send /done to process, or /cancel to cancel.'
+          : 'Session is stuck. Send /translate to reset and start over.')
+    );
+  } catch (error) {
+    console.error('Error getting session status:', error);
+    await ctx.reply('Error getting session status. Please try again.');
   }
 }

@@ -97,8 +97,9 @@ You should see a response like: `{"ok":true,"result":true}`
 
 - `/start` - Welcome message and bot introduction
 - `/help` - Show help message
-- `/translate` - Start a new session for message collection
+- `/translate` - Start a new session for message collection (auto-cleans stuck sessions)
 - `/done` - Process collected messages
+- `/status` - Check current session status and message count
 - `/cancel` - Cancel current session
 
 ### Example Workflow
@@ -170,7 +171,7 @@ Edit `src/handlers/messages.ts` to modify:
 ### GPT Model
 
 Edit `src/services/gpt.ts` to change:
-- `GPT_MODEL`: AI model (default: gpt-4o-mini)
+- `GPT_MODEL`: AI model (default: gpt-5.2-2025-12-11)
 
 ## Costs
 

@@ -1,6 +1,6 @@
 import { Bot } from 'grammy';
 import type { Env } from './types/session';
-import { handleTranslate, handleDone, handleCancel } from './handlers/commands';
+import { handleTranslate, handleDone, handleCancel, handleStatus } from './handlers/commands';
 import { handleVoiceMessage, handleTextMessage } from './handlers/messages';
 
 /**
@@ -40,6 +40,7 @@ export function createBot(token: string, env: Env): Bot {
         'Commands:\n' +
         '/translate - Start collecting messages\n' +
         '/done - Process collected messages\n' +
+        '/status - Check current session status\n' +
         '/cancel - Cancel current session\n' +
         '/help - Show this help message'
     );
@@ -47,6 +48,7 @@ export function createBot(token: string, env: Env): Bot {
 
   bot.command('translate', (ctx) => handleTranslate(ctx, env));
   bot.command('done', (ctx) => handleDone(ctx, env));
+  bot.command('status', (ctx) => handleStatus(ctx, env));
   bot.command('cancel', (ctx) => handleCancel(ctx, env));
 
   // Message handlers
