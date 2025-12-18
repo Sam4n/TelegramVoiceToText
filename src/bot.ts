@@ -1,7 +1,7 @@
 import { Bot } from 'grammy';
 import type { Env } from './types/session';
 import { handleTranslate, handleDone, handleCancel, handleStatus } from './handlers/commands';
-import { handleVoiceMessage, handleTextMessage, handleImageMessage } from './handlers/messages';
+import { handleVoiceMessage, handleTextMessage, handleImageMessage, handleDocumentMessage } from './handlers/messages';
 
 /**
  * Create and configure the Telegram bot
@@ -68,6 +68,7 @@ export function createBot(token: string, env: Env): Bot {
   bot.on('message:voice', (ctx) => handleVoiceMessage(ctx, env));
   bot.on('message:text', (ctx) => handleTextMessage(ctx, env));
   bot.on('message:photo', (ctx) => handleImageMessage(ctx, env));
+  bot.on('message:document', (ctx) => handleDocumentMessage(ctx, env));
 
   // Error handler
   bot.catch((err) => {
