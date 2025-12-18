@@ -8,7 +8,7 @@ const GPT_API_URL = 'https://api.openai.com/v1/chat/completions';
 /**
  * GPT model to use for analysis
  */
-const GPT_MODEL = 'gpt-5.2-2025-12-11';
+const GPT_MODEL = 'gpt-5-mini-2025-08-07';
 
 /**
  * Timeout for GPT API calls in milliseconds (30 seconds)
