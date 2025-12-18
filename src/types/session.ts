@@ -6,7 +6,7 @@ export type SessionStatus = 'collecting' | 'queued' | 'processing' | 'completed'
 /**
  * Type of message collected during a session
  */
-export type MessageType = 'voice' | 'text';
+export type MessageType = 'voice' | 'text' | 'image';
 
 /**
  * Represents a collected message (voice or text) during a session
@@ -29,6 +29,9 @@ export interface CollectedMessage {
 
   /** Duration in seconds (for voice messages) */
   duration?: number;
+
+  /** Image description from Vision analysis (for image messages) */
+  imageDescription?: string;
 
   /** Sequence number to maintain chronological order */
   order: number;
@@ -80,6 +83,14 @@ export interface AnalysisResult {
 
   /** List of extracted tasks/action items */
   tasks: string[];
+}
+
+/**
+ * Result of image analysis using GPT Vision
+ */
+export interface ImageAnalysisResult {
+  /** Descriptive text of image content */
+  description: string;
 }
 
 /**

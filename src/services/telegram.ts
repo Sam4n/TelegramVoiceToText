@@ -108,6 +108,73 @@ export async function downloadVoiceFileWithRetry(
 }
 
 /**
+ * Download an image file from Telegram
+ *
+ * @param botToken - Telegram bot API token
+ * @param fileId - Telegram file ID
+ * @returns ArrayBuffer containing the image file
+ */
+export async function downloadImageFile(
+  botToken: string,
+  fileId: string
+): Promise<ArrayBuffer> {
+  try {
+    // Step 1: Get file path (reuse existing getFileInfo function)
+    const filePath = await getFileInfo(botToken, fileId);
+
+    // Step 2: Download the file
+    const fileUrl = `${TELEGRAM_API_BASE}/file/bot${botToken}/${filePath}`;
+    const response = await fetch(fileUrl);
+
+    if (!response.ok) {
+      throw new Error(`Failed to download image: ${response.statusText}`);
+    }
+
+    return await response.arrayBuffer();
+  } catch (error) {
+    console.error('Error downloading image file:', error);
+    throw new Error(
+      `Failed to download image file: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Download an image file with retry logic
+ *
+ * @param botToken - Telegram bot API token
+ * @param fileId - Telegram file ID
+ * @param maxRetries - Maximum number of retry attempts (default: 3)
+ * @returns ArrayBuffer containing the image file
+ */
+export async function downloadImageFileWithRetry(
+  botToken: string,
+  fileId: string,
+  maxRetries: number = 3
+): Promise<ArrayBuffer> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await downloadImageFile(botToken, fileId);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Unknown error');
+      console.error(`Image download attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+
+      // Wait before retrying (exponential backoff)
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw new Error(
+    `Failed to download image after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`
+  );
+}
+
+/**
  * Send a message to Telegram using the Bot API
  * This works outside the webhook context (e.g., from queue consumers)
  *

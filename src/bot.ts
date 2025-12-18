@@ -1,7 +1,7 @@
 import { Bot } from 'grammy';
 import type { Env } from './types/session';
 import { handleTranslate, handleDone, handleCancel, handleStatus } from './handlers/commands';
-import { handleVoiceMessage, handleTextMessage } from './handlers/messages';
+import { handleVoiceMessage, handleTextMessage, handleImageMessage } from './handlers/messages';
 
 /**
  * Create and configure the Telegram bot
@@ -29,9 +29,9 @@ export function createBot(token: string, env: Env): Bot {
   bot.command('start', async (ctx) => {
     await ctx.reply(
       'Welcome to Voice-to-Text Bot!\n\n' +
-        'I can transcribe voice messages and analyze conversations.\n\n' +
+        'I can transcribe voice messages, analyze images, and analyze conversations.\n\n' +
         'Commands:\n' +
-        '/translate - Start collecting messages for transcription\n' +
+        '/translate - Start collecting messages (voice, text, or images)\n' +
         '/done - Process collected messages\n' +
         '/cancel - Cancel current session\n\n' +
         'Send /translate to begin!'
@@ -43,10 +43,11 @@ export function createBot(token: string, env: Env): Bot {
       'Voice-to-Text Bot Help\n\n' +
         'How to use:\n' +
         '1. Send /translate to start a session\n' +
-        '2. Forward or send 4-5 messages (voice or text)\n' +
+        '2. Forward or send 4-5 messages (voice, text, or images)\n' +
         '3. Send /done to process them\n\n' +
         'Features:\n' +
         '- Context-aware voice transcription\n' +
+        '- Image analysis for additional context\n' +
         '- Conversation summary\n' +
         '- Task list extraction\n\n' +
         'Commands:\n' +
@@ -66,6 +67,7 @@ export function createBot(token: string, env: Env): Bot {
   // Message handlers
   bot.on('message:voice', (ctx) => handleVoiceMessage(ctx, env));
   bot.on('message:text', (ctx) => handleTextMessage(ctx, env));
+  bot.on('message:photo', (ctx) => handleImageMessage(ctx, env));
 
   // Error handler
   bot.catch((err) => {

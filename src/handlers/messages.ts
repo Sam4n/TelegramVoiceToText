@@ -9,6 +9,11 @@ import { isUserAuthorized } from '../utils/auth';
 const MAX_VOICE_FILE_SIZE = 20 * 1024 * 1024;
 
 /**
+ * Maximum image file size in bytes (10MB)
+ */
+const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024;
+
+/**
  * Handle collection of voice or text messages
  */
 async function handleMessageCollection(
@@ -115,4 +120,90 @@ export async function handleVoiceMessage(ctx: Context, env: Env): Promise<void> 
  */
 export async function handleTextMessage(ctx: Context, env: Env): Promise<void> {
   await handleMessageCollection(ctx, env, 'text');
+}
+
+/**
+ * Handle photo/image messages
+ */
+export async function handleImageMessage(ctx: Context, env: Env): Promise<void> {
+  // Check authorization (silently ignore unauthorized users for messages)
+  if (!isUserAuthorized(ctx, env)) {
+    return;
+  }
+
+  const chatId = ctx.chat?.id;
+  const messageId = ctx.message?.message_id;
+
+  if (!chatId || !messageId) {
+    return;
+  }
+
+  try {
+    // Get active session
+    const session = await getSession(env.SESSIONS, chatId);
+
+    // Silently ignore messages if no active session
+    if (!session) {
+      return;
+    }
+
+    // Only collect messages in 'collecting' status
+    if (session.status !== 'collecting') {
+      return;
+    }
+
+    // Check message limit
+    if (session.messages.length >= MAX_MESSAGES_PER_SESSION) {
+      await ctx.reply(
+        `Maximum ${MAX_MESSAGES_PER_SESSION} messages reached. Send /done to process or /cancel to start over.`,
+        { reply_to_message_id: messageId }
+      );
+      return;
+    }
+
+    // Get photo array (Telegram sends multiple sizes)
+    const photos = ctx.message?.photo;
+    if (!photos || photos.length === 0) {
+      return;
+    }
+
+    // Select highest quality image (largest file_size)
+    // Telegram provides photos in ascending size order, so last element is largest
+    const photo = photos[photos.length - 1];
+
+    // Check file size
+    if (photo.file_size && photo.file_size > MAX_IMAGE_FILE_SIZE) {
+      await ctx.reply(
+        'Image is too large (max 10MB). Please send a smaller image.',
+        { reply_to_message_id: messageId }
+      );
+      return;
+    }
+
+    // Prepare message object
+    const message: CollectedMessage = {
+      id: messageId,
+      type: 'image',
+      fileId: photo.file_id,
+      fileSize: photo.file_size,
+      order: session.messages.length + 1,
+      timestamp: Date.now(),
+    };
+
+    // Add message to session
+    await addMessageToSession(env.SESSIONS, chatId, message);
+
+    // Send acknowledgment
+    await ctx.reply(`🖼️ Image ${message.order} collected`, {
+      reply_to_message_id: messageId,
+    });
+  } catch (error) {
+    console.error('Error handling image message:', error);
+
+    // Send error message
+    await ctx.reply(
+      `Error collecting image: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { reply_to_message_id: messageId }
+    );
+  }
 }
