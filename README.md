@@ -196,6 +196,30 @@ Edit `src/services/gpt.ts` to change:
 - Verify audio file is under 20MB
 - Check supported formats (OGG, MP3, WAV, M4A)
 
+### Timeout errors (Request timed out after 10000 ms)
+This happens when voice files take too long to transcribe:
+
+**Solution 1: Redeploy with fixes (Recommended)**
+```bash
+npm run deploy
+```
+The updated code now has 30-second timeouts instead of 10 seconds.
+
+**Solution 2: Keep voice messages shorter**
+- Voice files under 1 minute transcribe faster
+- Break long recordings into multiple shorter messages
+
+**Solution 3: Use Cloudflare Workers Paid Plan**
+- Free tier: 10ms CPU time, adequate for most use cases
+- Paid ($5/month): 50ms CPU time, handles longer operations
+- The wall-clock time (I/O waiting) is the same on both tiers
+
+**Why this happens:**
+- Cloudflare Workers has execution time limits
+- Whisper API can take 5-15 seconds for longer audio files
+- Previous version had implicit 10-second timeout
+- New version has explicit 30-second timeout
+
 ### Session not found
 - Sessions expire after 30 minutes
 - Use `/translate` to start a new session

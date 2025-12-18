@@ -11,6 +11,11 @@ const GPT_API_URL = 'https://api.openai.com/v1/chat/completions';
 const GPT_MODEL = 'gpt-5.2-2025-12-11';
 
 /**
+ * Timeout for GPT API calls in milliseconds (30 seconds)
+ */
+const GPT_TIMEOUT = 30000;
+
+/**
  * System prompt for conversation analysis
  */
 const SYSTEM_PROMPT = `You are a conversation analyzer. Given a conversation transcript (which may include both text messages and voice transcriptions), you need to:
@@ -62,6 +67,10 @@ export async function analyzeConversation(
   apiKey: string,
   conversationText: string
 ): Promise<AnalysisResult> {
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GPT_TIMEOUT);
+
   try {
     // Prepare request body
     const requestBody: GPTRequest = {
@@ -80,7 +89,9 @@ export async function analyzeConversation(
       temperature: 0.3,
     };
 
-    // Make API request
+    console.log(`Making GPT API call (timeout: ${GPT_TIMEOUT}ms)...`);
+
+    // Make API request with timeout
     const response = await fetch(GPT_API_URL, {
       method: 'POST',
       headers: {
@@ -88,7 +99,10 @@ export async function analyzeConversation(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -111,8 +125,19 @@ export async function analyzeConversation(
       throw new Error('Invalid response format from GPT API');
     }
 
+    console.log('GPT API call successful');
     return analysis;
   } catch (error) {
+    clearTimeout(timeoutId);
+
+    // Handle abort/timeout errors
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`GPT API timeout after ${GPT_TIMEOUT}ms`);
+      throw new Error(
+        `GPT API timeout after ${GPT_TIMEOUT / 1000} seconds. Conversation may be too long.`
+      );
+    }
+
     console.error('Error analyzing conversation:', error);
     throw new Error(
       `Failed to analyze conversation: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -131,7 +156,7 @@ export async function analyzeConversation(
 export async function analyzeConversationWithRetry(
   apiKey: string,
   conversationText: string,
-  maxRetries: number = 3
+  maxRetries: number = 2
 ): Promise<AnalysisResult> {
   let lastError: Error | undefined;
 
@@ -142,17 +167,19 @@ export async function analyzeConversationWithRetry(
       lastError = error instanceof Error ? error : new Error('Unknown error');
       console.error(`Analysis attempt ${attempt}/${maxRetries} failed:`, lastError.message);
 
-      // Don't retry on certain errors (e.g., invalid API key)
+      // Don't retry on certain errors
       if (
-        lastError.message.includes('401') ||
-        lastError.message.includes('400')
+        lastError.message.includes('401') || // Invalid API key
+        lastError.message.includes('400') || // Bad request
+        lastError.message.includes('timeout') // Timeout - retrying won't help
       ) {
         throw lastError;
       }
 
       // Wait before retrying (exponential backoff)
       if (attempt < maxRetries) {
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000);
+        console.log(`Waiting ${delay}ms before retry...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }

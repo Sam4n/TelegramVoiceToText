@@ -1,7 +1,7 @@
 /**
  * Session status represents the current state of a user's session
  */
-export type SessionStatus = 'collecting' | 'processing' | 'completed';
+export type SessionStatus = 'collecting' | 'queued' | 'processing' | 'completed';
 
 /**
  * Type of message collected during a session
@@ -94,6 +94,20 @@ export interface ProcessingResult {
 }
 
 /**
+ * Queue job for voice processing
+ */
+export interface VoiceProcessingJob {
+  /** Telegram chat ID */
+  chatId: number;
+
+  /** Timestamp when job was queued */
+  timestamp: number;
+
+  /** Number of messages to process */
+  messageCount: number;
+}
+
+/**
  * Environment bindings for Cloudflare Workers
  */
 export interface Env {
@@ -105,4 +119,10 @@ export interface Env {
 
   /** Cloudflare KV namespace for session storage */
   SESSIONS: KVNamespace;
+
+  /** Cloudflare Queue for async voice processing */
+  VOICE_QUEUE: Queue<VoiceProcessingJob>;
+
+  /** Cloudflare Queue for failed jobs (Dead Letter Queue) */
+  VOICE_DLQ: Queue<VoiceProcessingJob>;
 }

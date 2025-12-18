@@ -1,6 +1,9 @@
 name = "telegram-voice-bot"
 main = "src/index.ts"
-compatibility_date = "2023-12-18"
+compatibility_date = "2024-01-01"
+
+# Compatibility flags for better Node.js compatibility
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
@@ -8,10 +11,30 @@ ENVIRONMENT = "production"
 [[kv_namespaces]]
 binding = "SESSIONS"
 id = "fac198f4148145a898480d1813368e18"
-# After creating KV namespace with: wrangler kv:namespace create SESSIONS
-# Update the 'id' field with the actual namespace ID
+
+# Queue Producer Configuration (sends jobs to queue)
+[[queues.producers]]
+queue = "voice-processing-queue"
+binding = "VOICE_QUEUE"
+
+# Queue Consumer Configuration (processes jobs asynchronously)
+[[queues.consumers]]
+queue = "voice-processing-queue"
+max_batch_size = 1           # Process one job at a time
+max_batch_timeout = 1        # Start processing immediately (seconds)
+max_retries = 3              # Retry failed jobs 3 times
+dead_letter_queue = "voice-processing-dlq"  # Failed jobs go here
+
+# Dead Letter Queue for permanently failed jobs
+[[queues.producers]]
+queue = "voice-processing-dlq"
+binding = "VOICE_DLQ"
 
 # Secrets (set with: wrangler secret put SECRET_NAME)
-# Commands to run after setting up:
 # wrangler secret put TELEGRAM_BOT_TOKEN
 # wrangler secret put OPENAI_API_KEY
+
+# Setup commands (run before first deploy):
+# wrangler queues create voice-processing-queue
+# wrangler queues create voice-processing-dlq
+# wrangler types  # Generate TypeScript types

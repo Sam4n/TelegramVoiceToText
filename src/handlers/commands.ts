@@ -1,14 +1,12 @@
 import type { Context } from 'grammy';
-import type { Env } from '../types/session';
+import type { Env, VoiceProcessingJob } from '../types/session';
 import {
   createSession,
   getSession,
   deleteSession,
-  sessionExists,
   setSessionStatus,
+  updateSession,
 } from '../services/session';
-import { processSession } from '../services/processor';
-import { formatResult } from '../utils/formatting';
 
 /**
  * Handle /translate command
@@ -56,7 +54,7 @@ export async function handleTranslate(ctx: Context, env: Env): Promise<void> {
 
 /**
  * Handle /done command
- * Triggers processing of collected messages
+ * Sends job to queue for async processing
  */
 export async function handleDone(ctx: Context, env: Env): Promise<void> {
   const chatId = ctx.chat?.id;
@@ -75,7 +73,7 @@ export async function handleDone(ctx: Context, env: Env): Promise<void> {
     }
 
     if (session.status !== 'collecting') {
-      await ctx.reply('Session is already being processed or completed.');
+      await ctx.reply('Session is already queued or being processed.');
       return;
     }
 
@@ -86,29 +84,29 @@ export async function handleDone(ctx: Context, env: Env): Promise<void> {
       return;
     }
 
-    // Update status to processing
-    await setSessionStatus(env.SESSIONS, chatId, 'processing');
+    // Update status to queued
+    session.status = 'queued';
+    await updateSession(env.SESSIONS, chatId, session);
 
-    // Send processing message
+    // Create queue job
+    const job: VoiceProcessingJob = {
+      chatId: chatId,
+      timestamp: Date.now(),
+      messageCount: session.messages.length,
+    };
+
+    // Send job to queue for async processing
+    await env.VOICE_QUEUE.send(job);
+
+    console.log(`Job queued for chat ${chatId} with ${session.messages.length} messages`);
+
+    // Reply immediately (within timeout)
     await ctx.reply(
-      `Processing ${session.messages.length} message(s)...\n` +
-        'This may take a moment.'
+      `🔄 Processing ${session.messages.length} message(s)...\n\n` +
+        `I'll send you the results when ready. This may take a few moments.`
     );
-
-    // Process the session
-    const result = await processSession(env, session);
-
-    // Format and send result
-    const formattedMessage = formatResult(result);
-    await ctx.reply(formattedMessage, { parse_mode: 'Markdown' });
-
-    // Update status to completed and set short TTL for cleanup
-    await setSessionStatus(env.SESSIONS, chatId, 'completed');
-
-    // Clean up session after successful processing
-    await deleteSession(env.SESSIONS, chatId);
   } catch (error) {
-    console.error('Error processing session:', error);
+    console.error('Error queueing job:', error);
 
     // Try to reset session status so user can retry
     try {
@@ -118,7 +116,7 @@ export async function handleDone(ctx: Context, env: Env): Promise<void> {
     }
 
     await ctx.reply(
-      'Error processing messages. Please try again with /done, or use /cancel to start over.\n\n' +
+      'Error queueing your request. Please try again with /done, or use /cancel to start over.\n\n' +
         `Error details: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }

@@ -106,3 +106,96 @@ export async function downloadVoiceFileWithRetry(
     `Failed to download file after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`
   );
 }
+
+/**
+ * Send a message to Telegram using the Bot API
+ * This works outside the webhook context (e.g., from queue consumers)
+ *
+ * @param botToken - Telegram bot API token
+ * @param chatId - Chat ID to send message to
+ * @param text - Message text
+ * @param options - Optional message options
+ */
+export async function sendTelegramMessage(
+  botToken: string,
+  chatId: number,
+  text: string,
+  options?: {
+    parse_mode?: 'Markdown' | 'HTML';
+    disable_web_page_preview?: boolean;
+    reply_to_message_id?: number;
+  }
+): Promise<void> {
+  const url = `${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`;
+
+  const payload = {
+    chat_id: chatId,
+    text: text,
+    ...options,
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Telegram API error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    if (!data.ok) {
+      throw new Error(`Telegram API error: ${data.description || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Error sending Telegram message:', error);
+    throw new Error(
+      `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Send a message with retry logic
+ *
+ * @param botToken - Telegram bot API token
+ * @param chatId - Chat ID to send message to
+ * @param text - Message text
+ * @param options - Optional message options
+ * @param maxRetries - Maximum number of retry attempts (default: 3)
+ */
+export async function sendTelegramMessageWithRetry(
+  botToken: string,
+  chatId: number,
+  text: string,
+  options?: {
+    parse_mode?: 'Markdown' | 'HTML';
+  },
+  maxRetries: number = 3
+): Promise<void> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await sendTelegramMessage(botToken, chatId, text, options);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Unknown error');
+      console.error(`Send message attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+
+      // Wait before retrying (exponential backoff)
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw new Error(
+    `Failed to send message after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`
+  );
+}

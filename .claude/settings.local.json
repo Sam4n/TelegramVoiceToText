@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(powershell -Command \"Get-ChildItem -Path ''C:\\\\Projects\\\\TelegramVoiceToText'' -Force -Recurse | Select-Object FullName\")",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:developers.cloudflare.com)"
     ]
   }
 }
