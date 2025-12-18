@@ -7,7 +7,7 @@ ENVIRONMENT = "production"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "placeholder_kv_namespace_id"
+id = "fac198f4148145a898480d1813368e18"
 # After creating KV namespace with: wrangler kv:namespace create SESSIONS
 # Update the 'id' field with the actual namespace ID
 
