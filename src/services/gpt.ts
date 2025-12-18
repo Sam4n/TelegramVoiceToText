@@ -11,9 +11,10 @@ const GPT_API_URL = 'https://api.openai.com/v1/chat/completions';
 const GPT_MODEL = 'gpt-5-mini-2025-08-07';
 
 /**
- * Timeout for GPT API calls in milliseconds (30 seconds)
+ * Timeout for GPT API calls in milliseconds (60 seconds)
+ * Increased for longer conversations with multiple voice messages
  */
-const GPT_TIMEOUT = 30000;
+const GPT_TIMEOUT = 60000;
 
 /**
  * System prompt for conversation analysis

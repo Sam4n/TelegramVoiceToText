@@ -66,6 +66,9 @@ export interface TranscriptionResult {
 
   /** Transcribed text */
   text: string;
+
+  /** Original message ID for reply-to */
+  messageId: number;
 }
 
 /**
@@ -91,6 +94,17 @@ export interface ProcessingResult {
 
   /** Individual transcriptions */
   transcriptions: TranscriptionResult[];
+}
+
+/**
+ * Formatted message ready to be sent to Telegram
+ */
+export interface FormattedMessage {
+  /** Message text */
+  text: string;
+
+  /** Optional message ID to reply to */
+  replyToMessageId?: number;
 }
 
 /**
@@ -125,4 +139,7 @@ export interface Env {
 
   /** Cloudflare Queue for failed jobs (Dead Letter Queue) */
   VOICE_DLQ: Queue<VoiceProcessingJob>;
+
+  /** Optional: Comma-separated list of allowed usernames or chat IDs (e.g., "Sam4nFox,123456789") */
+  ALLOWED_USERS?: string;
 }

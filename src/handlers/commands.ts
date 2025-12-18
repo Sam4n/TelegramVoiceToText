@@ -7,12 +7,19 @@ import {
   setSessionStatus,
   updateSession,
 } from '../services/session';
+import { isUserAuthorized, sendUnauthorizedMessage } from '../utils/auth';
 
 /**
  * Handle /translate command
  * Starts a new session for collecting messages
  */
 export async function handleTranslate(ctx: Context, env: Env): Promise<void> {
+  // Check authorization
+  if (!isUserAuthorized(ctx, env)) {
+    await sendUnauthorizedMessage(ctx);
+    return;
+  }
+
   const chatId = ctx.chat?.id;
   const userId = ctx.from?.id;
 
@@ -57,6 +64,12 @@ export async function handleTranslate(ctx: Context, env: Env): Promise<void> {
  * Sends job to queue for async processing
  */
 export async function handleDone(ctx: Context, env: Env): Promise<void> {
+  // Check authorization
+  if (!isUserAuthorized(ctx, env)) {
+    await sendUnauthorizedMessage(ctx);
+    return;
+  }
+
   const chatId = ctx.chat?.id;
 
   if (!chatId) {
@@ -127,6 +140,12 @@ export async function handleDone(ctx: Context, env: Env): Promise<void> {
  * Cancels the current session
  */
 export async function handleCancel(ctx: Context, env: Env): Promise<void> {
+  // Check authorization
+  if (!isUserAuthorized(ctx, env)) {
+    await sendUnauthorizedMessage(ctx);
+    return;
+  }
+
   const chatId = ctx.chat?.id;
 
   if (!chatId) {
@@ -155,6 +174,12 @@ export async function handleCancel(ctx: Context, env: Env): Promise<void> {
  * Shows current session status
  */
 export async function handleStatus(ctx: Context, env: Env): Promise<void> {
+  // Check authorization
+  if (!isUserAuthorized(ctx, env)) {
+    await sendUnauthorizedMessage(ctx);
+    return;
+  }
+
   const chatId = ctx.chat?.id;
 
   if (!chatId) {

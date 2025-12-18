@@ -1,6 +1,7 @@
 import type { Context } from 'grammy';
 import type { Env, CollectedMessage, MessageType } from '../types/session';
 import { getSession, addMessageToSession, MAX_MESSAGES_PER_SESSION } from '../services/session';
+import { isUserAuthorized } from '../utils/auth';
 
 /**
  * Maximum voice file size in bytes (20MB)
@@ -15,6 +16,11 @@ async function handleMessageCollection(
   env: Env,
   messageType: MessageType
 ): Promise<void> {
+  // Check authorization (silently ignore unauthorized users for messages)
+  if (!isUserAuthorized(ctx, env)) {
+    return;
+  }
+
   const chatId = ctx.chat?.id;
   const messageId = ctx.message?.message_id;
 

@@ -85,14 +85,21 @@ export default {
         console.log(`Processing ${session.messages.length} messages for chat ${job.chatId}`);
         const result = await processSession(env, session);
 
-        // Format and send results
-        const formattedMessage = formatResult(result);
-        await sendTelegramMessageWithRetry(
-          env.TELEGRAM_BOT_TOKEN,
-          job.chatId,
-          formattedMessage,
-          { parse_mode: 'Markdown' }
-        );
+        // Format results as multiple messages
+        const formattedMessages = formatResult(result);
+
+        // Send each message separately
+        for (const message of formattedMessages) {
+          await sendTelegramMessageWithRetry(
+            env.TELEGRAM_BOT_TOKEN,
+            job.chatId,
+            message.text,
+            {
+              parse_mode: 'Markdown',
+              reply_to_message_id: message.replyToMessageId,
+            }
+          );
+        }
 
         // Update session to completed
         session.status = 'completed';

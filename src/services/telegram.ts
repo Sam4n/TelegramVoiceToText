@@ -175,6 +175,7 @@ export async function sendTelegramMessageWithRetry(
   text: string,
   options?: {
     parse_mode?: 'Markdown' | 'HTML';
+    reply_to_message_id?: number;
   },
   maxRetries: number = 3
 ): Promise<void> {

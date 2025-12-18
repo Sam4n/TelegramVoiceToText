@@ -54,6 +54,7 @@ export async function processSession(
       transcriptions.push({
         order: msg.order,
         text: transcribedText,
+        messageId: msg.id,
       });
 
       console.log(`Voice message ${msg.order} transcribed successfully`);
