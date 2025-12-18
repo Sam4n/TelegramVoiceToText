@@ -13,6 +13,18 @@ import { handleVoiceMessage, handleTextMessage } from './handlers/messages';
 export function createBot(token: string, env: Env): Bot {
   const bot = new Bot(token);
 
+  // Set up bot commands menu (appears when user types "/")
+  bot.api.setMyCommands([
+    { command: 'start', description: 'Start the bot and see welcome message' },
+    { command: 'translate', description: 'Start collecting messages for transcription' },
+    { command: 'done', description: 'Process collected messages' },
+    { command: 'status', description: 'Check current session status' },
+    { command: 'cancel', description: 'Cancel current session' },
+    { command: 'help', description: 'Show help message' },
+  ]).catch((err) => {
+    console.error('Failed to set bot commands:', err);
+  });
+
   // Command handlers
   bot.command('start', async (ctx) => {
     await ctx.reply(

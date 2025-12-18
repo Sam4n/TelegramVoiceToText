@@ -95,7 +95,7 @@ export default {
             job.chatId,
             message.text,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_to_message_id: message.replyToMessageId,
             }
           );

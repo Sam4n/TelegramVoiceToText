@@ -7,6 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
+ALLOWED_USERS = "Sam4nFox,irgamedevelop,ShabnamShirzadegan"  # Comma-separated list of allowed usernames or chat IDs
 
 [[kv_namespaces]]
 binding = "SESSIONS"
@@ -33,7 +34,6 @@ binding = "VOICE_DLQ"
 # Secrets (set with: wrangler secret put SECRET_NAME)
 # wrangler secret put TELEGRAM_BOT_TOKEN
 # wrangler secret put OPENAI_API_KEY
-# wrangler secret put ALLOWED_USERS    # Optional: Whitelist users (e.g., "Sam4nFox,123456789")
 
 # Setup commands (run before first deploy):
 # wrangler queues create voice-processing-queue
