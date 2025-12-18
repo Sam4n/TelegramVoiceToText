@@ -1,0 +1,112 @@
+import type { Context } from 'grammy';
+import type { Env, CollectedMessage, MessageType } from '../types/session';
+import { getSession, addMessageToSession, MAX_MESSAGES_PER_SESSION } from '../services/session';
+
+/**
+ * Maximum voice file size in bytes (20MB)
+ */
+const MAX_VOICE_FILE_SIZE = 20 * 1024 * 1024;
+
+/**
+ * Handle collection of voice or text messages
+ */
+async function handleMessageCollection(
+  ctx: Context,
+  env: Env,
+  messageType: MessageType
+): Promise<void> {
+  const chatId = ctx.chat?.id;
+  const messageId = ctx.message?.message_id;
+
+  if (!chatId || !messageId) {
+    return;
+  }
+
+  try {
+    // Get active session
+    const session = await getSession(env.SESSIONS, chatId);
+
+    // Silently ignore messages if no active session
+    if (!session) {
+      return;
+    }
+
+    // Only collect messages in 'collecting' status
+    if (session.status !== 'collecting') {
+      return;
+    }
+
+    // Check message limit
+    if (session.messages.length >= MAX_MESSAGES_PER_SESSION) {
+      await ctx.reply(
+        `Maximum ${MAX_MESSAGES_PER_SESSION} messages reached. Send /done to process or /cancel to start over.`,
+        { reply_to_message_id: messageId }
+      );
+      return;
+    }
+
+    // Prepare message object
+    const message: CollectedMessage = {
+      id: messageId,
+      type: messageType,
+      order: session.messages.length + 1,
+      timestamp: Date.now(),
+    };
+
+    // Handle voice messages
+    if (messageType === 'voice' && ctx.message?.voice) {
+      const voice = ctx.message.voice;
+
+      // Check file size
+      if (voice.file_size && voice.file_size > MAX_VOICE_FILE_SIZE) {
+        await ctx.reply(
+          'Voice message is too large (max 20MB). Please send a smaller file.',
+          { reply_to_message_id: messageId }
+        );
+        return;
+      }
+
+      message.fileId = voice.file_id;
+      message.fileSize = voice.file_size;
+      message.duration = voice.duration;
+    }
+    // Handle text messages
+    else if (messageType === 'text' && ctx.message?.text) {
+      message.content = ctx.message.text;
+    } else {
+      // Shouldn't happen, but handle gracefully
+      return;
+    }
+
+    // Add message to session
+    await addMessageToSession(env.SESSIONS, chatId, message);
+
+    // Send acknowledgment
+    const emoji = messageType === 'voice' ? '🎙️' : '📝';
+    await ctx.reply(`${emoji} Message ${message.order} collected`, {
+      reply_to_message_id: messageId,
+    });
+  } catch (error) {
+    console.error('Error handling message:', error);
+
+    // Send error message
+    await ctx.reply(
+      `Error collecting message: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { reply_to_message_id: messageId }
+    );
+  }
+}
+
+/**
+ * Handle voice messages
+ */
+export async function handleVoiceMessage(ctx: Context, env: Env): Promise<void> {
+  await handleMessageCollection(ctx, env, 'voice');
+}
+
+/**
+ * Handle text messages
+ */
+export async function handleTextMessage(ctx: Context, env: Env): Promise<void> {
+  await handleMessageCollection(ctx, env, 'text');
+}

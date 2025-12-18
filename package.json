@@ -1,0 +1,33 @@
+{
+  "name": "telegram-voice-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for voice message transcription with context-aware analysis",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "kv:create": "wrangler kv:namespace create SESSIONS"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "voice",
+    "transcription",
+    "openai",
+    "whisper",
+    "cloudflare-workers"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "grammy": "^1.19.0",
+    "openai": "^4.20.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20231218.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "wrangler": "^3.20.0"
+  }
+}

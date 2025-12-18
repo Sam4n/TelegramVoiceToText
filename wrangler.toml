@@ -1,0 +1,17 @@
+name = "telegram-voice-bot"
+main = "src/index.ts"
+compatibility_date = "2023-12-18"
+
+[vars]
+ENVIRONMENT = "production"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "placeholder_kv_namespace_id"
+# After creating KV namespace with: wrangler kv:namespace create SESSIONS
+# Update the 'id' field with the actual namespace ID
+
+# Secrets (set with: wrangler secret put SECRET_NAME)
+# Commands to run after setting up:
+# wrangler secret put TELEGRAM_BOT_TOKEN
+# wrangler secret put OPENAI_API_KEY
