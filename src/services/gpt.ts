@@ -86,7 +86,7 @@ export async function analyzeConversation(
         },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.3,
+      // Note: gpt-5-mini-2025-08-07 only supports default temperature (1)
     };
 
     console.log(`Making GPT API call (timeout: ${GPT_TIMEOUT}ms)...`);
