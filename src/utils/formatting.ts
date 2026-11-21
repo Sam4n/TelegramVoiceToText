@@ -1,4 +1,5 @@
 import type { ProcessingResult, FormattedMessage } from '../types/session';
+import type { OutputMode } from './config';
 
 /**
  * Telegram message character limit
@@ -6,77 +7,102 @@ import type { ProcessingResult, FormattedMessage } from '../types/session';
 const TELEGRAM_MESSAGE_LIMIT = 4096;
 
 /**
- * Format processing result as multiple Telegram messages
- *
- * @param result - Processing result with summary, tasks, and transcriptions
- * @returns Array of formatted messages (summary, tasks, and transcripts as separate messages)
+ * Room kept for a section label on the first message of a section
  */
-export function formatResult(result: ProcessingResult): FormattedMessage[] {
-  const messages: FormattedMessage[] = [];
+const LABEL_ROOM = 64;
 
-  // Message 1: Summary (using HTML for safe formatting)
-  const summaryText = `<b>📋 Conversation Summary:</b>\n${escapeHtml(result.summary)}`;
-  messages.push({
-    text: truncateMessage(summaryText, TELEGRAM_MESSAGE_LIMIT),
-  });
+const TRANSCRIPT_LABEL = '🎙️ <b>Transcript</b>\n\n';
+const POLISHED_LABEL = '✨ <b>Polished</b>\n\n';
 
-  // Message 2+: Tasks (split into multiple messages if needed)
-  if (result.tasks.length > 0) {
-    const taskMessages = splitTasksIntoMessages(result.tasks);
-    messages.push(...taskMessages);
-  } else {
-    messages.push({
-      text: '<b>✅ Tasks Identified:</b>\n<i>No specific tasks found</i>',
-    });
+/**
+ * Format processing result as Telegram messages
+ *
+ * - both: the transcript, then the polished version, each labelled
+ *   (the transcript alone when polishing failed)
+ * - polished: the polished version only (the transcript when polishing failed)
+ * - transcript: the transcript only
+ *
+ * A section longer than Telegram's limit continues in the next message.
+ *
+ * @param result - Processing result
+ * @param mode - Output mode
+ * @returns Array of formatted messages
+ */
+export function formatResult(result: ProcessingResult, mode: OutputMode): FormattedMessage[] {
+  const transcript = result.transcript.trim();
+  const polished = result.polished?.trim() || null;
+
+  if (!transcript) {
+    return [{ text: '<i>No voice or text messages to transcribe.</i>' }];
   }
 
-  // Message N+: Individual transcriptions (each as a reply to the original voice message)
-  if (result.transcriptions.length > 0) {
-    result.transcriptions.forEach((trans) => {
-      messages.push({
-        text: `🎙️ <b>Voice ${trans.order} Transcription:</b>\n\n${escapeHtml(trans.text)}`,
-        replyToMessageId: trans.messageId,
-      });
-    });
+  if (mode === 'transcript' || (mode === 'polished' && !polished)) {
+    return section(transcript);
+  }
+  if (mode === 'polished') {
+    return section(polished as string);
   }
 
-  return messages;
+  // both
+  if (!polished) {
+    return section(transcript);
+  }
+  return [...section(transcript, TRANSCRIPT_LABEL), ...section(polished, POLISHED_LABEL)];
 }
 
 /**
- * Split tasks into multiple messages if they exceed the character limit
- *
- * @param tasks - Array of task strings
- * @returns Array of formatted messages containing tasks
+ * One section as messages, with an optional label on the first message
  */
-function splitTasksIntoMessages(tasks: string[]): FormattedMessage[] {
-  const messages: FormattedMessage[] = [];
-  const header = '<b>✅ Tasks Identified:</b>\n';
-  let currentMessage = header;
-  let currentTaskNumber = 1;
-  let messageCount = 1;
+function section(text: string, label: string = ''): FormattedMessage[] {
+  const chunks = splitForTelegram(text, TELEGRAM_MESSAGE_LIMIT - (label ? LABEL_ROOM : 0));
+  return chunks.map((chunk, index) => ({ text: index === 0 ? label + chunk : chunk }));
+}
 
-  for (let i = 0; i < tasks.length; i++) {
-    const taskLine = `${currentTaskNumber}. ${escapeHtml(tasks[i])}\n`;
+/**
+ * Split text into escaped chunks that each fit in one Telegram message,
+ * breaking at a paragraph, line, sentence or word boundary where possible
+ *
+ * @param text - Unescaped text
+ * @param limit - Maximum escaped length of a chunk
+ * @returns Escaped chunks, in order
+ */
+export function splitForTelegram(text: string, limit: number = TELEGRAM_MESSAGE_LIMIT): string[] {
+  const chunks: string[] = [];
+  let rest = text;
 
-    // Check if adding this task would exceed the limit
-    if (currentMessage.length + taskLine.length > TELEGRAM_MESSAGE_LIMIT - 100) {
-      // Save current message and start a new one
-      messages.push({ text: currentMessage.trim() });
-      messageCount++;
-      currentMessage = `<b>✅ Tasks Identified (continued ${messageCount}):</b>\n`;
+  while (rest) {
+    if (escapeHtml(rest).length <= limit) {
+      chunks.push(escapeHtml(rest));
+      break;
     }
 
-    currentMessage += taskLine;
-    currentTaskNumber++;
+    // Longest prefix whose escaped form fits
+    let fit = 0;
+    let escapedLength = 0;
+    while (fit < rest.length) {
+      const charLength = escapeHtml(rest[fit]).length;
+      if (escapedLength + charLength > limit) break;
+      escapedLength += charLength;
+      fit++;
+    }
+
+    // Prefer a natural break in the second half of the prefix
+    const prefix = rest.slice(0, fit);
+    const minimum = Math.floor(fit / 2);
+    let cut = fit;
+    for (const separator of ['\n\n', '\n', '. ', ' ']) {
+      const index = prefix.lastIndexOf(separator);
+      if (index >= minimum) {
+        cut = index + separator.length;
+        break;
+      }
+    }
+
+    chunks.push(escapeHtml(rest.slice(0, cut).trimEnd()));
+    rest = rest.slice(cut).trimStart();
   }
 
-  // Add the last message if it has content
-  if (currentMessage.trim() !== header.trim() && currentMessage.trim() !== `<b>✅ Tasks Identified (continued ${messageCount}):</b>`) {
-    messages.push({ text: currentMessage.trim() });
-  }
-
-  return messages;
+  return chunks;
 }
 
 /**
@@ -91,24 +117,6 @@ function escapeHtml(text: string): string {
     .replace(/&/g, '&amp;')   // Ampersand (must be first)
     .replace(/</g, '&lt;')    // Less than
     .replace(/>/g, '&gt;');   // Greater than
-}
-
-/**
- * Truncate message to fit within Telegram's character limit
- *
- * @param message - Original message
- * @param maxLength - Maximum length (default: 4096)
- * @returns Truncated message with notice
- */
-function truncateMessage(message: string, maxLength: number = TELEGRAM_MESSAGE_LIMIT): string {
-  const truncateNotice = '\n\n<i>[Message truncated due to length]</i>';
-  const truncateLength = maxLength - truncateNotice.length;
-
-  if (message.length <= maxLength) {
-    return message;
-  }
-
-  return message.substring(0, truncateLength) + truncateNotice;
 }
 
 /**

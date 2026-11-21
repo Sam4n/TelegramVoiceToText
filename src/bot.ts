@@ -2,6 +2,7 @@ import { Bot } from 'grammy';
 import type { Env } from './types/session';
 import { handleTranslate, handleDone, handleCancel, handleStatus } from './handlers/commands';
 import { handleVoiceMessage, handleTextMessage, handleImageMessage, handleDocumentMessage } from './handlers/messages';
+import { handleSettings, handleSettingsCallback } from './handlers/settings';
 
 /**
  * Create and configure the Telegram bot
@@ -20,6 +21,7 @@ export function createBot(token: string, env: Env): Bot {
     { command: 'done', description: 'Process collected messages' },
     { command: 'status', description: 'Check current session status' },
     { command: 'cancel', description: 'Cancel current session' },
+    { command: 'settings', description: 'Choose the AI model, language and output' },
     { command: 'help', description: 'Show help message' },
   ]).catch((err) => {
     console.error('Failed to set bot commands:', err);
@@ -29,11 +31,12 @@ export function createBot(token: string, env: Env): Bot {
   bot.command('start', async (ctx) => {
     await ctx.reply(
       'Welcome to Voice-to-Text Bot!\n\n' +
-        'I can transcribe voice messages, analyze images, and analyze conversations.\n\n' +
+        'I transcribe your voice messages into text.\n\n' +
         'Commands:\n' +
         '/translate - Start collecting messages (voice, text, or images)\n' +
         '/done - Process collected messages\n' +
-        '/cancel - Cancel current session\n\n' +
+        '/cancel - Cancel current session\n' +
+        '/settings - Choose the AI model, language and output\n\n' +
         'Send /translate to begin!'
     );
   });
@@ -48,13 +51,14 @@ export function createBot(token: string, env: Env): Bot {
         'Features:\n' +
         '- Context-aware voice transcription\n' +
         '- Image analysis for additional context\n' +
-        '- Conversation summary\n' +
-        '- Task list extraction\n\n' +
+        '- Transcript of everything you sent\n' +
+        '- /settings: AI model, language, and transcript or polished output\n\n' +
         'Commands:\n' +
         '/translate - Start collecting messages\n' +
         '/done - Process collected messages\n' +
         '/status - Check current session status\n' +
         '/cancel - Cancel current session\n' +
+        '/settings - Choose the AI model, language and output\n' +
         '/help - Show this help message'
     );
   });
@@ -63,6 +67,8 @@ export function createBot(token: string, env: Env): Bot {
   bot.command('done', (ctx) => handleDone(ctx, env));
   bot.command('status', (ctx) => handleStatus(ctx, env));
   bot.command('cancel', (ctx) => handleCancel(ctx, env));
+  bot.command('settings', (ctx) => handleSettings(ctx, env));
+  bot.callbackQuery(/^cfg:/, (ctx) => handleSettingsCallback(ctx, env));
 
   // Message handlers
   bot.on('message:voice', (ctx) => handleVoiceMessage(ctx, env));

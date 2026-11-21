@@ -1,4 +1,4 @@
-import type { AnalysisResult, ImageAnalysisResult } from '../types/session';
+import type { ImageAnalysisResult } from '../types/session';
 
 /**
  * OpenAI Chat Completions API endpoint
@@ -6,15 +6,22 @@ import type { AnalysisResult, ImageAnalysisResult } from '../types/session';
 const GPT_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 /**
- * GPT model to use for analysis
+ * Model used for image analysis (the polishing model comes from POLISH_MODEL, see src/utils/config.ts)
  */
 const GPT_MODEL = 'gpt-5-mini-2025-08-07';
 
 /**
- * Timeout for GPT API calls in milliseconds (60 seconds)
- * Increased for longer conversations with multiple voice messages
+ * Reasoning models accept reasoning_effort; older chat models reject it
  */
-const GPT_TIMEOUT = 60000;
+function isReasoningModel(model: string): boolean {
+  return /^(gpt-[5-9]|o[0-9])/.test(model);
+}
+
+/**
+ * Timeout for GPT API calls in milliseconds (90 seconds)
+ * The reply is the whole polished text, so long conversations need the time
+ */
+const GPT_TIMEOUT = 90000;
 
 /**
  * Timeout for Vision API calls in milliseconds (45 seconds)
@@ -23,21 +30,19 @@ const GPT_TIMEOUT = 60000;
 const VISION_TIMEOUT = 45000;
 
 /**
- * System prompt for conversation analysis
+ * System prompt for the polished version of a conversation
  */
-const SYSTEM_PROMPT = `You are a conversation analyzer. Given a conversation transcript (which may include both text messages and voice transcriptions), you need to:
+const SYSTEM_PROMPT = `You are an editor. The user message holds one conversation, in order, as labelled parts: "[Voice message]:" is a speech-to-text transcription, "[Text message]:" is typed text, and "[Image]:" describes a photo.
 
-1. Provide a concise summary of the conversation (2-3 sentences)
-2. Extract a bullet-point list of action items, tasks, and to-dos mentioned in the conversation
+Write a polished version of the voice and text parts, as one text, the way a careful writer would put it:
+- Keep the original language of each part. Never translate. Keep product and technical names as they are.
+- Keep every point, fact, name, number, date and the speaker's intent. Do not summarize, drop content, or add information.
+- Fix a speech-to-text mistake only when the context leaves a single sensible reading. Otherwise keep the word as transcribed. Never replace a name with a different name.
+- Use standard written grammar, spelling and punctuation, in a natural, friendly tone. For Persian, write standard written Persian with correct half-spaces rather than colloquial spoken forms.
+- Remove filler words, false starts and repetition. Split run-on speech into clear sentences and short paragraphs.
+- Use the image descriptions only as context; do not include them.
 
-Format your response as JSON with the following structure:
-{
-  "summary": "Brief 2-3 sentence summary of the conversation",
-  "tasks": ["task 1", "task 2", "task 3"]
-}
-
-If no tasks are mentioned, return an empty array for tasks.
-Be specific and actionable in your task extraction.`;
+Reply with the polished text only: no title, no labels, no commentary, no Markdown formatting.`;
 
 /**
  * System prompt for image analysis
@@ -62,6 +67,7 @@ interface GPTRequest {
     content: string;
   }>;
   response_format?: { type: string };
+  reasoning_effort?: 'minimal' | 'low' | 'medium' | 'high';
   temperature?: number;
 }
 
@@ -77,24 +83,25 @@ interface GPTResponse {
 }
 
 /**
- * Analyze conversation using GPT-4
+ * Turn the conversation into one polished text
  *
  * @param apiKey - OpenAI API key
- * @param conversationText - Combined conversation text
- * @returns Analysis result with summary and tasks
+ * @param conversationText - Combined conversation text, one labelled part per message
+ * @param model - Text model
+ * @returns The polished text
  */
-export async function analyzeConversation(
+export async function polishConversation(
   apiKey: string,
-  conversationText: string
-): Promise<AnalysisResult> {
+  conversationText: string,
+  model: string
+): Promise<string> {
   // Create abort controller for timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), GPT_TIMEOUT);
 
   try {
-    // Prepare request body
     const requestBody: GPTRequest = {
-      model: GPT_MODEL,
+      model,
       messages: [
         {
           role: 'system',
@@ -105,13 +112,12 @@ export async function analyzeConversation(
           content: conversationText,
         },
       ],
-      response_format: { type: 'json_object' },
-      // Note: gpt-5-mini-2025-08-07 only supports default temperature (1)
+      // Reasoning models only support the default temperature (1)
+      ...(isReasoningModel(model) ? { reasoning_effort: 'low' as const } : {}),
     };
 
-    console.log(`Making GPT API call (timeout: ${GPT_TIMEOUT}ms)...`);
+    console.log(`Making polish call with ${model} (timeout: ${GPT_TIMEOUT}ms)...`);
 
-    // Make API request with timeout
     const response = await fetch(GPT_API_URL, {
       method: 'POST',
       headers: {
@@ -135,18 +141,13 @@ export async function analyzeConversation(
       throw new Error('No response from GPT API');
     }
 
-    const content = result.choices[0].message.content;
-
-    // Parse JSON response
-    const analysis = JSON.parse(content) as AnalysisResult;
-
-    // Validate response structure
-    if (!analysis.summary || !Array.isArray(analysis.tasks)) {
-      throw new Error('Invalid response format from GPT API');
+    const text = (result.choices[0].message.content || '').trim();
+    if (!text) {
+      throw new Error('Empty response from GPT API');
     }
 
     console.log('GPT API call successful');
-    return analysis;
+    return text;
   } catch (error) {
     clearTimeout(timeoutId);
 
@@ -158,34 +159,36 @@ export async function analyzeConversation(
       );
     }
 
-    console.error('Error analyzing conversation:', error);
+    console.error('Error polishing conversation:', error);
     throw new Error(
-      `Failed to analyze conversation: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to polish conversation: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
 
 /**
- * Analyze conversation with retry logic
+ * Polish conversation with retry logic
  *
  * @param apiKey - OpenAI API key
  * @param conversationText - Combined conversation text
- * @param maxRetries - Maximum number of retry attempts (default: 3)
- * @returns Analysis result with summary and tasks
+ * @param model - Text model
+ * @param maxRetries - Maximum number of attempts (default: 2)
+ * @returns The polished text
  */
-export async function analyzeConversationWithRetry(
+export async function polishConversationWithRetry(
   apiKey: string,
   conversationText: string,
+  model: string,
   maxRetries: number = 2
-): Promise<AnalysisResult> {
+): Promise<string> {
   let lastError: Error | undefined;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await analyzeConversation(apiKey, conversationText);
+      return await polishConversation(apiKey, conversationText, model);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error('Unknown error');
-      console.error(`Analysis attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+      console.error(`Polish attempt ${attempt}/${maxRetries} failed:`, lastError.message);
 
       // Don't retry on certain errors
       if (
@@ -206,7 +209,7 @@ export async function analyzeConversationWithRetry(
   }
 
   throw new Error(
-    `Failed to analyze conversation after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`
+    `Failed to polish conversation after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`
   );
 }
 

@@ -1,5 +1,6 @@
 name = "telegram-voice-bot"
 main = "src/index.ts"
+account_id = "e8089d9d52981bec1da4c60c7a027b57"  # personal account (Saman.ghadirian@gmail.com)
 compatibility_date = "2024-01-01"
 
 # Compatibility flags for better Node.js compatibility
@@ -8,6 +9,14 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_USERS = "Sam4nFox,irgamedevelop,ShabnamShirzadegan"  # Comma-separated list of allowed usernames or chat IDs
+
+# Defaults for every chat; each chat can change its own with /settings in Telegram.
+# Change a default here, then deploy. List the models your key can use:
+#   curl -s https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
+TRANSCRIBE_MODEL = "gpt-transcribe"  # speech-to-text: gpt-transcribe, gpt-4o-transcribe, gpt-4o-mini-transcribe, whisper-1
+LANGUAGE = "auto"                    # spoken language: auto, or an ISO-639-1 code such as fa or en
+OUTPUT_MODE = "transcript"           # transcript, polished, or both
+POLISH_MODEL = "gpt-6.2-sol"         # text model for the polished version (unused when OUTPUT_MODE is transcript)
 
 [[kv_namespaces]]
 binding = "SESSIONS"

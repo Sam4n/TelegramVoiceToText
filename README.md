@@ -1,12 +1,12 @@
 # Telegram Voice-to-Text Bot
 
-A Telegram bot that transcribes voice messages using OpenAI's Whisper API with context-aware processing and conversation analysis.
+A Telegram bot that transcribes voice messages using OpenAI's Whisper API with context-aware processing, and turns each conversation into one polished text.
 
 ## Features
 
 - **Context-Aware Transcription**: Uses text messages as context to improve voice transcription accuracy
-- **Conversation Summary**: Generates concise summaries of your conversations
-- **Task Extraction**: Automatically identifies and lists action items and tasks
+- **Transcript**: Sends back what was said, in its original language
+- **Settings in Telegram**: `/settings` picks the speech-to-text model, the language, and transcript or polished output per chat
 - **Multi-Message Support**: Process up to 10 messages (voice and text) in a single session
 - **Serverless Deployment**: Runs on Cloudflare Workers for free (up to 1M requests/day)
 
@@ -15,7 +15,7 @@ A Telegram bot that transcribes voice messages using OpenAI's Whisper API with c
 1. Send `/translate` to start a session
 2. Forward or send 4-5 messages (mix of voice and text)
 3. Send `/done` to process
-4. Receive transcriptions, summary, and task list
+4. Receive the transcript of everything you sent
 
 ## Prerequisites
 
@@ -101,6 +101,7 @@ You should see a response like: `{"ok":true,"result":true}`
 - `/done` - Process collected messages
 - `/status` - Check current session status and message count
 - `/cancel` - Cancel current session
+- `/settings` - Choose the AI model, language, and transcript or polished output
 
 ### Example Workflow
 
@@ -109,10 +110,7 @@ You should see a response like: `{"ok":true,"result":true}`
 3. Forward or type 4-5 messages (can be voice or text)
 4. Bot acknowledges each message: "🎙️ Message 1 collected"
 5. Send `/done` when ready
-6. Bot processes and replies with:
-   - Conversation summary
-   - Task list
-   - Individual voice transcriptions
+6. Bot processes and replies with the transcript of the whole conversation
 
 ## Development
 
@@ -144,7 +142,7 @@ telegram-voice-bot/
 │   │   ├── session.ts        # Session management (KV)
 │   │   ├── telegram.ts       # File downloads
 │   │   ├── whisper.ts        # Voice transcription
-│   │   ├── gpt.ts            # Conversation analysis
+│   │   ├── gpt.ts            # Text polishing and image analysis
 │   │   └── processor.ts      # Main orchestrator
 │   ├── types/
 │   │   └── session.ts        # TypeScript interfaces
@@ -168,10 +166,18 @@ Edit `src/services/session.ts` to modify:
 Edit `src/handlers/messages.ts` to modify:
 - `MAX_VOICE_FILE_SIZE`: Maximum file size (default: 20MB)
 
-### GPT Model
+### AI Models and Output
 
-Edit `src/services/gpt.ts` to change:
-- `GPT_MODEL`: AI model (default: gpt-5.2-2025-12-11)
+Each chat changes its own settings with `/settings` in Telegram (stored in KV). The defaults
+for every chat are set in `wrangler.toml` under `[vars]`, then deploy:
+- `TRANSCRIBE_MODEL`: speech-to-text model (default: `gpt-transcribe`)
+- `LANGUAGE`: spoken language, `auto` or an ISO-639-1 code such as `fa` (default: `auto`)
+- `OUTPUT_MODE`: `transcript` (default), `polished`, or `both`
+- `POLISH_MODEL`: text model for the polished version (default: `gpt-6.2-sol`)
+
+The options the menu offers are listed in `src/utils/config.ts`.
+
+Image analysis uses `GPT_MODEL` in `src/services/gpt.ts`.
 
 ## Costs
 

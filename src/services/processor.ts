@@ -1,18 +1,22 @@
 import type { Session, ProcessingResult, TranscriptionResult, Env } from '../types/session';
 import { downloadVoiceFileWithRetry, downloadImageFileWithRetry } from './telegram';
 import { transcribeAudioWithRetry } from './whisper';
-import { analyzeConversationWithRetry, analyzeImageWithRetry } from './gpt';
+import { polishConversationWithRetry, analyzeImageWithRetry } from './gpt';
+import type { ChatSettings } from '../utils/config';
 
 /**
- * Process a session by transcribing voice messages and analyzing the conversation
+ * Process a session: transcribe voice messages and, when the output asks for it,
+ * polish the conversation into one text
  *
  * @param env - Cloudflare Workers environment bindings
  * @param session - Session to process
- * @returns Processing result with summary, tasks, and transcriptions
+ * @param config - The chat's settings (models, language, output)
+ * @returns Processing result with the transcript, the polished text and the transcriptions
  */
 export async function processSession(
   env: Env,
-  session: Session
+  session: Session,
+  config: ChatSettings
 ): Promise<ProcessingResult> {
   try {
     // Step 1: Process image messages first (before building Whisper context)
@@ -109,7 +113,9 @@ export async function processSession(
       const transcribedText = await transcribeAudioWithRetry(
         env.OPENAI_API_KEY,
         audioBuffer,
-        textContext
+        textContext,
+        config.transcribeModel,
+        config.language
       );
 
       transcriptions.push({
@@ -147,21 +153,38 @@ export async function processSession(
     console.log('Combined content for analysis:');
     console.log(combinedContent);
 
-    // Step 5: Analyze with GPT-4 (text-only analysis of all content)
-    console.log('Analyzing conversation with GPT-4...');
-    const analysis = await analyzeConversationWithRetry(
-      env.OPENAI_API_KEY,
-      combinedContent
-    );
+    // Voice and text content without labels: the transcript, close to what was said
+    const transcript = session.messages
+      .map((msg) => {
+        if (msg.type === 'text') return msg.content?.trim() ?? '';
+        if (msg.type === 'voice') {
+          return transcriptions.find((t) => t.order === msg.order)?.text ?? '';
+        }
+        return '';
+      })
+      .filter((content) => content !== '')
+      .join('\n\n');
 
-    console.log('Analysis complete:', analysis);
+    if (!transcript || config.outputMode === 'transcript') {
+      return { transcript, polished: null, transcriptions };
+    }
 
-    // Return complete result
-    return {
-      summary: analysis.summary,
-      tasks: analysis.tasks,
-      transcriptions,
-    };
+    // Step 5: Polish everything into one text (images are context only)
+    console.log(`Polishing conversation with ${config.polishModel}...`);
+    let polished: string | null = null;
+    try {
+      polished = await polishConversationWithRetry(
+        env.OPENAI_API_KEY,
+        combinedContent,
+        config.polishModel
+      );
+      console.log('Polishing complete');
+    } catch (error) {
+      // Send the transcript alone rather than fail the job and re-run transcription on retry
+      console.error('Polishing failed, sending the transcript only:', error);
+    }
+
+    return { transcript, polished, transcriptions };
   } catch (error) {
     console.error('Error in processSession:', error);
     throw new Error(

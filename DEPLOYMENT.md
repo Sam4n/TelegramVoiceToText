@@ -104,7 +104,7 @@ Expected output:
 4. **Verify async behavior:**
    - Bot should reply **immediately**: "🔄 Processing 2 message(s)..."
    - Within 10-30 seconds, bot sends "⚙️ Processing started..."
-   - Then bot sends the final results with transcription, summary, and tasks
+   - Then bot sends the transcript
 
 ### 5. Monitor Logs
 

@@ -1,5 +1,5 @@
 /**
- * OpenAI Whisper API endpoint
+ * OpenAI speech-to-text endpoint (whisper-1, gpt-4o-transcribe, gpt-transcribe, ...)
  */
 const WHISPER_API_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
@@ -21,17 +21,21 @@ interface WhisperResponse {
 }
 
 /**
- * Transcribe audio using OpenAI Whisper API
+ * Transcribe audio using an OpenAI speech-to-text model
  *
  * @param apiKey - OpenAI API key
  * @param audioBuffer - Audio file as ArrayBuffer
  * @param contextText - Optional context to improve transcription accuracy
+ * @param model - Speech-to-text model
+ * @param language - ISO-639-1 code of the spoken language, or "auto"
  * @returns Transcribed text
  */
 export async function transcribeAudio(
   apiKey: string,
   audioBuffer: ArrayBuffer,
-  contextText: string = ''
+  contextText: string = '',
+  model: string = 'whisper-1',
+  language: string = 'auto'
 ): Promise<string> {
   // Create abort controller for timeout
   const controller = new AbortController();
@@ -41,7 +45,10 @@ export async function transcribeAudio(
     // Prepare form data
     const formData = new FormData();
     formData.append('file', new Blob([audioBuffer], { type: 'audio/ogg' }), 'audio.ogg');
-    formData.append('model', 'whisper-1');
+    formData.append('model', model);
+    if (language && language !== 'auto') {
+      formData.append('language', language);
+    }
     formData.append('response_format', 'json');
 
     // Add context as prompt if provided (truncate to max length)
@@ -50,7 +57,7 @@ export async function transcribeAudio(
       formData.append('prompt', prompt);
     }
 
-    console.log(`Making Whisper API call (timeout: ${WHISPER_TIMEOUT}ms)...`);
+    console.log(`Making transcription call with ${model} (timeout: ${WHISPER_TIMEOUT}ms)...`);
 
     // Make API request with timeout
     const response = await fetch(WHISPER_API_URL, {
@@ -101,20 +108,24 @@ export async function transcribeAudio(
  * @param apiKey - OpenAI API key
  * @param audioBuffer - Audio file as ArrayBuffer
  * @param contextText - Optional context to improve transcription accuracy
- * @param maxRetries - Maximum number of retry attempts (default: 3)
+ * @param model - Speech-to-text model
+ * @param language - ISO-639-1 code of the spoken language, or "auto"
+ * @param maxRetries - Maximum number of attempts (default: 2)
  * @returns Transcribed text
  */
 export async function transcribeAudioWithRetry(
   apiKey: string,
   audioBuffer: ArrayBuffer,
   contextText: string = '',
+  model: string = 'whisper-1',
+  language: string = 'auto',
   maxRetries: number = 2
 ): Promise<string> {
   let lastError: Error | undefined;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await transcribeAudio(apiKey, audioBuffer, contextText);
+      return await transcribeAudio(apiKey, audioBuffer, contextText, model, language);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error('Unknown error');
       console.error(`Transcription attempt ${attempt}/${maxRetries} failed:`, lastError.message);

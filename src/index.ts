@@ -4,6 +4,7 @@ import { processSession } from './services/processor';
 import { getSession, updateSession, deleteSession } from './services/session';
 import { sendTelegramMessageWithRetry } from './services/telegram';
 import { formatResult } from './utils/formatting';
+import { getChatSettings } from './services/settings';
 import type { Env, VoiceProcessingJob } from './types/session';
 
 /**
@@ -83,10 +84,15 @@ export default {
 
         // Process the session (long-running task - can take 30+ seconds)
         console.log(`Processing ${session.messages.length} messages for chat ${job.chatId}`);
-        const result = await processSession(env, session);
+        const settings = await getChatSettings(env, job.chatId);
+        console.log(
+          `Settings: transcribe=${settings.transcribeModel} language=${settings.language} output=${settings.outputMode}` +
+            (settings.outputMode === 'transcript' ? '' : ` polish=${settings.polishModel}`)
+        );
+        const result = await processSession(env, session, settings);
 
         // Format results as multiple messages
-        const formattedMessages = formatResult(result);
+        const formattedMessages = formatResult(result, settings.outputMode);
 
         // Send each message separately
         for (const message of formattedMessages) {

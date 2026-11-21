@@ -75,17 +75,6 @@ export interface TranscriptionResult {
 }
 
 /**
- * Result of GPT-4 conversation analysis
- */
-export interface AnalysisResult {
-  /** Conversation summary (2-3 sentences) */
-  summary: string;
-
-  /** List of extracted tasks/action items */
-  tasks: string[];
-}
-
-/**
  * Result of image analysis using GPT Vision
  */
 export interface ImageAnalysisResult {
@@ -97,11 +86,11 @@ export interface ImageAnalysisResult {
  * Complete processing result
  */
 export interface ProcessingResult {
-  /** Conversation summary */
-  summary: string;
+  /** Voice transcriptions and text messages in order, as said (empty when there was none) */
+  transcript: string;
 
-  /** List of tasks */
-  tasks: string[];
+  /** Polished version of the transcript, or null when not requested or polishing failed */
+  polished: string | null;
 
   /** Individual transcriptions */
   transcriptions: TranscriptionResult[];
@@ -153,4 +142,16 @@ export interface Env {
 
   /** Optional: Comma-separated list of allowed usernames or chat IDs (e.g., "Sam4nFox,123456789") */
   ALLOWED_USERS?: string;
+
+  /** Optional: speech-to-text model (default in src/utils/config.ts) */
+  TRANSCRIBE_MODEL?: string;
+
+  /** Optional: text model for the polished version (default in src/utils/config.ts) */
+  POLISH_MODEL?: string;
+
+  /** Optional: "transcript", "polished" or "both" (default "transcript") */
+  OUTPUT_MODE?: string;
+
+  /** Optional: spoken language as an ISO-639-1 code, or "auto" (default "auto") */
+  LANGUAGE?: string;
 }
